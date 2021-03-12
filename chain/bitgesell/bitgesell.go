@@ -1,7 +1,8 @@
 package bitgesell
 
 import (
-	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/bitgesellofficial/bgld/chaincfg"
+	"github.com/renproject/multichain/chain/bitcoin"
 )
 
 func init() {
@@ -71,4 +72,11 @@ var RegressionNetParams = chaincfg.Params{
 	// Human-readable part for Bech32 encoded segwit addresses, as defined in
 	// BIP 173.
 	Bech32HRPSegwit: "rbgl",
+}
+
+// DefaultClientOptions returns ClientOptions with the default settings. These
+// settings are valid for use with the default local deployment of the
+// multichain. In production, the host, user, and password should be changed.
+func DefaultClientOptions() ClientOptions {
+	return bitcoin.DefaultClientOptions().WithHost("http://0.0.0.0:18475")
 }

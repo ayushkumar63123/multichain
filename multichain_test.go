@@ -47,7 +47,7 @@ import (
 var (
 	testBTC  = flag.Bool("btc", false, "Pass this flag to test Bitcoin")
 	testBCH  = flag.Bool("bch", false, "Pass this flag to test Bitcoincash")
-	testBCH  = flag.Bool("bgl", false, "Pass this flag to test Bitgesell")
+	testBGL  = flag.Bool("bgl", false, "Pass this flag to test Bitgesell")
 	testDOGE = flag.Bool("doge", false, "Pass this flag to test Dogecoin")
 	testFIL  = flag.Bool("fil", false, "Pass this flag to test Filecoin")
 	testLUNA = flag.Bool("luna", false, "Pass this flag to test Terra")
@@ -170,7 +170,62 @@ var _ = Describe("Multichain", func() {
 					addrEncodeDecoder := bitcoin.NewAddressEncodeDecoder(&chaincfg.RegressionNetParams)
 					return addrEncodeDecoder
 				},
+					func() multichain.Address {
+					// Generate a random SECP256K1 private key.
+					pk := id.NewPrivKey()
+					// Get bitcoin WIF private key with the pub key configured to be in
+					// the compressed form.
+					wif, err := btcutil.NewWIF((*btcec.PrivateKey)(pk), &chaincfg.RegressionNetParams, true)
+					Expect(err).NotTo(HaveOccurred())
+					addrPubKeyHash, err := btcutil.NewAddressPubKeyHash(btcutil.Hash160(wif.SerializePubKey()), &chaincfg.RegressionNetParams)
+					Expect(err).NotTo(HaveOccurred())
+					// Return the human-readable encoded bitcoin address in base58 format.
+					return multichain.Address(addrPubKeyHash.EncodeAddress())
+				},
+				func() multichain.RawAddress {
+					// Generate a random SECP256K1 private key.
+					pk := id.NewPrivKey()
+					// Get bitcoin WIF private key with the pub key configured to be in
+					// the compressed form.
+					wif, err := btcutil.NewWIF((*btcec.PrivateKey)(pk), &chaincfg.RegressionNetParams, true)
+					Expect(err).NotTo(HaveOccurred())
+					// Get the address pubKey hash. This is the most commonly used format
+					// for a bitcoin address.
+					addrPubKeyHash, err := btcutil.NewAddressPubKeyHash(btcutil.Hash160(wif.SerializePubKey()), &chaincfg.RegressionNetParams)
+					Expect(err).NotTo(HaveOccurred())
+					// Encode into the checksummed base58 format.
+					encoded := addrPubKeyHash.EncodeAddress()
+					return multichain.RawAddress(pack.Bytes(base58.Decode(encoded)))
+				},
 				func() multichain.Address {
+					// Random bytes of script.
+					script := make([]byte, r.Intn(100))
+					r.Read(script)
+					// Create address script hash from the random script bytes.
+					addrScriptHash, err := btcutil.NewAddressScriptHash(script, &chaincfg.RegressionNetParams)
+					Expect(err).NotTo(HaveOccurred())
+					// Return in human-readable encoded form.
+					return multichain.Address(addrScriptHash.EncodeAddress())
+				},
+				func() multichain.RawAddress {
+					// Random bytes of script.
+					script := make([]byte, r.Intn(100))
+					r.Read(script)
+					// Create address script hash from the random script bytes.
+					addrScriptHash, err := btcutil.NewAddressScriptHash(script, &chaincfg.RegressionNetParams)
+					Expect(err).NotTo(HaveOccurred())
+					// Encode to the checksummed base58 format.
+					encoded := addrScriptHash.EncodeAddress()
+					return multichain.RawAddress(pack.Bytes(base58.Decode(encoded)))
+				},
+			},
+			{
+				multichain.Bitgesell,
+				func() multichain.AddressEncodeDecoder {
+					addrEncodeDecoder := bitcoin.NewAddressEncodeDecoder(&chaincfg.RegressionNetParams)
+					return addrEncodeDecoder
+				},
+					func() multichain.Address {
 					// Generate a random SECP256K1 private key.
 					pk := id.NewPrivKey()
 					// Get bitcoin WIF private key with the pub key configured to be in
@@ -733,6 +788,26 @@ var _ = Describe("Multichain", func() {
 				},
 				bitcoincash.NewTxBuilder(&chaincfg.RegressionNetParams),
 				multichain.BitcoinCash,
+			},
+			{
+				"BITGESELL_PK",
+				func(pkh []byte) (btcutil.Address, error) {
+					addr, err := btcutil.NewAddressPubKeyHash(pkh, &chaincfg.RegressionNetParams)
+					return addr, err
+				},
+				func(script []byte) (btcutil.Address, error) {
+					addr, err := btcutil.NewAddressScriptHash(script, &chaincfg.RegressionNetParams)
+					return addr, err
+				},
+				pack.NewString("http://0.0.0.0:18475"),
+				func(rpcURL pack.String, pkhAddr btcutil.Address) (multichain.UTXOClient, []multichain.UTXOutput, func(context.Context, pack.Bytes) (int64, error)) {
+					client := bitgesell.NewClient(bitgesell.DefaultClientOptions())
+					outputs, err := client.UnspentOutputs(ctx, 0, 999999999, multichain.Address(pkhAddr.EncodeAddress()))
+					Expect(err).NotTo(HaveOccurred())
+					return client, outputs, client.Confirmations
+				},
+				bitgesell.NewTxBuilder(&chaincfg.RegressionNetParams),
+				multichain.Bitgesell,
 			},
 			{
 				"DOGECOIN_PK",

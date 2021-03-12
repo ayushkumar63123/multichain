@@ -11,7 +11,7 @@ echo "BGL_ADDRESS=$ADDRESS"
 # Import the address
 BGL-cli importaddress $ADDRESS
 
-# Generate enough block to pass the maturation time
+# Generate enough block to pass the maturation time (100 blocks)
 BGL-cli generatetoaddress 101 $ADDRESS
 
 # Simulate mining

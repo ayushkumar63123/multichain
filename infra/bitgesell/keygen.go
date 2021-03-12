@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 
-	"github.com/btcsuite/btcd/btcec"
-	"github.com/btcsuite/btcutil"
+	"github.com/bitgesellofficial/bgld/btcec"
+	"github.com/bitgesellofficial/bglutil"
 
 	"github.com/renproject/id"
 	"github.com/renproject/multichain/chain/bitgesell"
@@ -12,11 +12,11 @@ import (
 
 func main() {
 	privKey := id.NewPrivKey()
-	wif, err := btcutil.NewWIF((*btcec.PrivateKey)(privKey), &bitgesell.RegressionNetParams, true)
+	wif, err := bglutil.NewWIF((*btcec.PrivateKey)(privKey), &bitgesell.RegressionNetParams, true)
 	if err != nil {
 		panic(err)
 	}
-	addrPubKeyHash, err := btcutil.NewAddressPubKeyHash(btcutil.Hash160(wif.SerializePubKey()), &bitgesell.RegressionNetParams)
+	addrPubKeyHash, err := bglutil.NewAddressPubKeyHash(bglutil.Hash160(wif.SerializePubKey()), &bitgesell.RegressionNetParams)
 	if err != nil {
 		panic(err)
 	}

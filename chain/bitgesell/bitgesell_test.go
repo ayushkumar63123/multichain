@@ -7,7 +7,8 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/btcsuite/btcutil"
+	"github.com/bitgesellofficial/bgld/chaincfg"
+	"github.com/bitgesellofficial/bglutil"
 	"github.com/renproject/id"
 	"github.com/renproject/multichain/api/address"
 	"github.com/renproject/multichain/api/utxo"
@@ -29,20 +30,18 @@ var _ = Describe("Bitgesell", func() {
 				if pkEnv == "" {
 					panic("BGL_PK is undefined")
 				}
-				wif, err := btcutil.DecodeWIF(pkEnv)
+				wif, err := bglutil.DecodeWIF(pkEnv)
 				Expect(err).ToNot(HaveOccurred())
 
-				// PKH
-				pkhAddr, err := btcutil.NewAddressPubKeyHash(btcutil.Hash160(wif.PrivKey.PubKey().SerializeCompressed()), &bitgesell.RegressionNetParams)
+				// note: legacy (non-witness) addresses are not supported in Bitgesell
+				// WPKH
+				wpkAddr, err := bglutil.NewAddressWitnessPubKeyHash([]byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19}, &bitgesell.RegressionNetParams)
 				Expect(err).ToNot(HaveOccurred())
-				pkhAddrUncompressed, err := btcutil.NewAddressPubKeyHash(btcutil.Hash160(wif.PrivKey.PubKey().SerializeUncompressed()), &bitgesell.RegressionNetParams)
-				Expect(err).ToNot(HaveOccurred())
-				log.Printf("PKH                %v", pkhAddr.EncodeAddress())
-				log.Printf("PKH (uncompressed) %v", pkhAddrUncompressed.EncodeAddress())
+				log.Printf("WPKH               %v", wpkAddr.EncodeAddress())
 
 				// Setup the client and load the unspent transaction outputs.
-				client := bitgesell.NewClient(bitgesell.DefaultClientOptions().WithHost("http://127.0.0.1:18475"))
-				outputs, err := client.UnspentOutputs(context.Background(), 0, 999999999, address.Address(pkhAddr.EncodeAddress()))
+				client := bitgesell.NewClient(bitgesell.DefaultClientOptions())
+				outputs, err := client.UnspentOutputs(context.Background(), 0, 999999999, address.Address(os.Getenv("BGL_ADDRESS")))
 				Expect(err).ToNot(HaveOccurred())
 				Expect(len(outputs)).To(BeNumerically(">", 0))
 				output := outputs[0]
@@ -53,23 +52,33 @@ var _ = Describe("Bitgesell", func() {
 				output2, _, err := client.Output(context.Background(), output.Outpoint)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(reflect.DeepEqual(output, output2)).To(BeTrue())
+				output2, _, err = client.UnspentOutput(context.Background(), output.Outpoint)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(reflect.DeepEqual(output, output2)).To(BeTrue())
 
 				// Build the transaction by consuming the outputs and spending
 				// them to a set of recipients.
 				inputs := []utxo.Input{
-					{Output: output},
+					{Output: utxo.Output{
+						Outpoint: utxo.Outpoint{
+							Hash:  output.Outpoint.Hash[:],
+							Index: output.Outpoint.Index,
+						},
+						PubKeyScript: output.PubKeyScript,
+						Value:        output.Value,
+					}},
 				}
 				recipients := []utxo.Recipient{
 					{
-						To:    address.Address(pkhAddr.EncodeAddress()),
+						To:    address.Address(os.Getenv("BGL_ADDRESS")),
 						Value: pack.NewU256FromU64(pack.NewU64((output.Value.Int().Uint64() - 1000) / 2)),
 					},
 					{
-						To:    address.Address(pkhAddrUncompressed.EncodeAddress()),
+						To:    address.Address(wpkAddr.EncodeAddress()),
 						Value: pack.NewU256FromU64(pack.NewU64((output.Value.Int().Uint64() - 1000) / 2)),
 					},
 				}
-				tx, err := bitgesell.NewTxBuilder(&bitgesell.RegressionNetParams).BuildTx(inputs, recipients)
+				tx, err := bitgesell.NewTxBuilder(&chaincfg.RegressionNetParams).BuildTx(inputs, recipients)
 				Expect(err).ToNot(HaveOccurred())
 
 				// Get the digests that need signing from the transaction, and
@@ -77,6 +86,7 @@ var _ = Describe("Bitgesell", func() {
 				// MPC algorithm, but for the purposes of this test, using an
 				// explicit privkey is ok.
 				sighashes, err := tx.Sighashes()
+
 				signatures := make([]pack.Bytes65, len(sighashes))
 				Expect(err).ToNot(HaveOccurred())
 				for i := range sighashes {
@@ -102,14 +112,19 @@ var _ = Describe("Bitgesell", func() {
 					// definitely valid, and the test has passed. We were
 					// successfully able to use the multichain to construct and
 					// submit a Bitgesell transaction!
+					log.Printf("Checking for confirmations...")
 					confs, err := client.Confirmations(context.Background(), txHash)
 					Expect(err).ToNot(HaveOccurred())
 					log.Printf("                   %v/3 confirmations", confs)
-					if confs >= 3 {
+					if confs >= 1 {
 						break
 					}
 					time.Sleep(10 * time.Second)
 				}
+				ctxWithTimeout, cancelCtxWithTimeout := context.WithTimeout(context.Background(), time.Second)
+				defer cancelCtxWithTimeout()
+				_, _, err = client.UnspentOutput(ctxWithTimeout, output.Outpoint)
+				Expect(err).To(HaveOccurred())
 
 				// Check that we can load the output and that it is equal.
 				// Otherwise, something strange is happening with the RPC
