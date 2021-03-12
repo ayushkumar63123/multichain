@@ -29,6 +29,7 @@ import (
 	"github.com/renproject/multichain/chain/bitcoincash"
 
 	// "github.com/renproject/multichain/chain/digibyte"
+	"github.com/renproject/multichain/chain/bitgesell"
 	"github.com/renproject/multichain/chain/dogecoin"
 	"github.com/renproject/multichain/chain/filecoin"
 	"github.com/renproject/multichain/chain/terra"
@@ -46,6 +47,7 @@ import (
 var (
 	testBTC  = flag.Bool("btc", false, "Pass this flag to test Bitcoin")
 	testBCH  = flag.Bool("bch", false, "Pass this flag to test Bitcoincash")
+	testBCH  = flag.Bool("bgl", false, "Pass this flag to test Bitgesell")
 	testDOGE = flag.Bool("doge", false, "Pass this flag to test Dogecoin")
 	testFIL  = flag.Bool("fil", false, "Pass this flag to test Filecoin")
 	testLUNA = flag.Bool("luna", false, "Pass this flag to test Terra")
@@ -69,6 +71,7 @@ var _ = Describe("Multichain", func() {
 	testFlags := map[multichain.Chain]bool{}
 	testFlags[multichain.Bitcoin] = *testBTC
 	testFlags[multichain.BitcoinCash] = *testBCH
+	testFlags[multichain.Bitgesell] = *testBGL
 	testFlags[multichain.Dogecoin] = *testDOGE
 	testFlags[multichain.Filecoin] = *testFIL
 	testFlags[multichain.Terra] = *testLUNA
@@ -111,6 +114,10 @@ var _ = Describe("Multichain", func() {
 				{
 					multichain.BitcoinCash,
 					multichain.BCH,
+				},
+				{
+					multichain.Bitgesell,
+					multichain.BGL,
 				},
 				{
 					multichain.DigiByte,
